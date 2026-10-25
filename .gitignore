@@ -1,0 +1,24 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# env
+.env
+
+# database + uploads
+prisma/dev.db*
+prisma/e2e.db*
+uploads/
+.pg-e2e/
+
+# vercel
+.vercel
+
+# playwright
+/test-results/
+/playwright-report/

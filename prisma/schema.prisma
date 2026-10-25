@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Hosted on Vercel + Neon (free tier), so the spec's SQLite file became Postgres
+// (DSA_TRACKER_SPEC §11 item 18). DATABASE_URL is Neon's pooled connection string;
+// DATABASE_URL_UNPOOLED is the direct one, used for migrations.
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  username     String     @unique
+  passwordHash String
+  createdAt    DateTime   @default(now())
+  folders      Folder[]
+  images       Image[]
+}
+
+model Folder {
+  id        String     @id @default(cuid())
+  name      String
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions Question[]
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, name])
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  folderId      String
+  folder        Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  title         String
+  link          String?            // problem URL (LeetCode, GFG, etc.)
+  content       String   @default("{}")  // TipTap JSON, stringified
+  difficulty    String   @default("Medium") // "Easy" | "Medium" | "Hard"
+  tags          String   @default("[]")    // JSON array of strings, e.g. ["two-pointers","sorting"]
+  isPattern     Boolean  @default(false) // listed in the "Famous Patterns" folder too
+  lastRevisedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([folderId, lastRevisedAt])
+}
+
+// Uploaded images live in the database (Vercel has no persistent disk). They're served only
+// to their owner through GET /api/uploads/<filename>.
+model Image {
+  id        String   @id @default(cuid())
+  filename  String   @unique // "<cuid>.<ext>"
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
