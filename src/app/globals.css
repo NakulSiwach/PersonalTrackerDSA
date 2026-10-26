@@ -69,10 +69,15 @@ button:not(:disabled) {
   padding-left: 1rem;
   color: var(--color-neutral-500);
 }
+/* Highlight colors are all light, so highlighted text must stay black, even in dark mode.
+   !important beats the inline "color: inherit" TipTap writes on each <mark>. */
+.tiptap mark,
+.tiptap mark * {
+  color: #111 !important;
+}
 .tiptap mark {
   border-radius: 0.2em;
   padding: 0 0.1em;
-  color: var(--color-neutral-900); /* preset highlight colors are light; keep text dark */
 }
 .tiptap img {
   max-width: 100%;

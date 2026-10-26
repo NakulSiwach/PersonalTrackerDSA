@@ -10,7 +10,7 @@
     "postinstall": "prisma generate",
     "db:deploy": "prisma migrate deploy",
     "import:sqlite": "node --experimental-sqlite --no-warnings --env-file=.env scripts/import-sqlite.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "node scripts/e2e-build.mjs && playwright test"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

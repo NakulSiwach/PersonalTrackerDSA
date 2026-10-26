@@ -62,6 +62,8 @@ These were requested after the spec build:
 - **Tag controls:** the tag filter is a styled dropdown that shows how many questions have each tag. The tag input suggests your existing tags as you type (↑/↓ to move, Enter to pick).
 - **Pattern toggle and Famous Patterns:** every question card, and the question page, has a **☆ Pattern** switch. When it's on, the question also appears in the **★ Famous Patterns** folder at the top of the home screen. The question is *linked*, not copied: its notes and revision date are shared, so revising it in either place counts everywhere. Famous Patterns has its own Revise-next card, and "Next suggestion →" stays within Famous Patterns when you start there. Turning the switch off removes the question from Famous Patterns but keeps it in its own folder.
   - API: `PATCH /api/questions/:id { isPattern }`, `GET /api/patterns`, and `POST /api/questions/:id/revise?scope=patterns`.
+- **Screenshot paste:** paste a screenshot (e.g. Win+Shift+S, then Ctrl+V) straight into a question. It works even if the cursor is in the title field. Large screenshots are scaled down in the browser to fit the 4 MB upload limit.
+- **Readable highlights in dark mode:** highlighted text is always black, since the highlight colors are light.
 - **Free hosting:** Postgres instead of SQLite, and images stored in the database.
 
 ## Scripts
@@ -71,7 +73,7 @@ These were requested after the spec build:
 | `npm run dev` | Development server |
 | `npm run build` / `npm start` | Production build / server |
 | `npm run lint` | ESLint |
-| `npm run test:e2e` | Runs the spec's §8 acceptance tests and the extra feature tests with Playwright, at desktop and mobile sizes. Run `npm run build` first, and `npx playwright install chromium` once. It starts its own throwaway local Postgres, so your Neon data is never touched. |
+| `npm run test:e2e` | Runs the spec's §8 acceptance tests and the extra feature tests with Playwright, at desktop and mobile sizes. It builds the app into `.next-e2e` first, so it can run while `npm run dev` is open. Run `npx playwright install chromium` once. It starts its own throwaway local Postgres, so your Neon data is never touched. |
 | `npm run import:sqlite` | One-time copy of the old SQLite data into Neon |
 | `npm run db:deploy` | Apply database migrations (Vercel's build does this automatically) |
 | `npx tsx scripts/set-last-revised.ts <questionId> <daysAgo>` | DB helper for acceptance test 6: backdates a question's *last revised* date |

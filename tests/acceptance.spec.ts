@@ -482,3 +482,77 @@ test("Famous Patterns only shows the logged-in user's questions", async ({ brows
   await a.close();
   await b.close();
 });
+
+/** Dispatches a paste event carrying a big PNG "screenshot" (random noise, so it compresses badly). */
+async function pasteBigScreenshot(page: Page, target: "editor" | "title") {
+  return page.evaluate(async (where) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2560;
+    canvas.height = 1440;
+    const ctx = canvas.getContext("2d")!;
+    const img = ctx.createImageData(canvas.width, canvas.height);
+    for (let i = 0; i < img.data.length; i++) img.data[i] = i % 4 === 3 ? 255 : (Math.random() * 255) | 0;
+    ctx.putImageData(img, 0, 0);
+    const blob: Blob = await new Promise((r) => canvas.toBlob((b) => r(b!), "image/png"));
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], "image.png", { type: "image/png" }));
+    const el = where === "editor" ? document.querySelector(".tiptap")! : document.querySelector('input[aria-label="Title"]')!;
+    (el as HTMLElement).focus();
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    return blob.size;
+  }, target);
+}
+
+test("Pasting a large screenshot works (shrunk below the upload limit first)", async ({ page }) => {
+  await register(page.request);
+  const folder = await createFolder(page.request);
+  const q = await createQuestion(page.request, folder.id, "Screenshot test");
+  await page.goto(`/folders/${folder.id}/questions/${q.id}`);
+  await page.getByTestId("editor").click();
+
+  const original = await pasteBigScreenshot(page, "editor");
+  expect(original).toBeGreaterThan(4 * 1024 * 1024); // bigger than the upload limit as-is
+  const img = page.getByTestId("editor").locator('img[src^="/api/uploads/"]');
+  await expect(img).toBeVisible({ timeout: 30_000 });
+  expect(await img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.getByTestId("save-status")).toHaveText("Saved");
+  await page.reload();
+  await expect(img).toBeVisible();
+});
+
+test("Pasting a screenshot while the title field is focused adds it to the notes", async ({ page }) => {
+  await register(page.request);
+  const folder = await createFolder(page.request);
+  const q = await createQuestion(page.request, folder.id, "Title paste");
+  await page.goto(`/folders/${folder.id}/questions/${q.id}`);
+  await expect(page.getByTestId("editor")).toBeVisible();
+  await pasteBigScreenshot(page, "title");
+  await expect(page.getByTestId("editor").locator('img[src^="/api/uploads/"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByLabel("Title")).toHaveValue("Title paste");
+});
+
+test("Highlighted text is black in dark mode too", async ({ page }) => {
+  await register(page.request);
+  const folder = await createFolder(page.request);
+  const q = await createQuestion(page.request, folder.id, "Dark highlight");
+  const doc = {
+    type: "doc",
+    content: [{ type: "paragraph", content: [
+      { type: "text", text: "plain", marks: [{ type: "highlight", attrs: { color: "#fef08a" } }] },
+      { type: "text", text: "bold", marks: [{ type: "bold" }, { type: "highlight", attrs: { color: "#bfdbfe" } }] },
+    ] }],
+  };
+  await page.request.patch(`/api/questions/${q.id}`, { data: { content: JSON.stringify(doc) } });
+  await page.goto(`/folders/${folder.id}/questions/${q.id}`);
+
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate((t) => document.documentElement.classList.toggle("dark", t === "dark"), theme);
+    await expect(page.getByTestId("editor").locator("mark")).toHaveCount(2);
+    // Bold may wrap the highlight or sit inside it, so check every highlight and its contents.
+    const colors = await page.getByTestId("editor").evaluate((root) =>
+      [...root.querySelectorAll("mark, mark *")].map((el) => getComputedStyle(el).color),
+    );
+    expect(colors.length, theme).toBeGreaterThanOrEqual(2);
+    for (const c of colors) expect(c, theme).toBe("rgb(17, 17, 17)");
+  }
+});

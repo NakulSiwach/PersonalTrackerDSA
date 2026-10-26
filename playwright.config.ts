@@ -7,6 +7,7 @@ export const E2E_DB_URL = "postgresql://postgres:password@localhost:5433/e2e";
 // Runs the spec's §8 acceptance tests against `npm run build` output, with an isolated DB.
 export default defineConfig({
   testDir: "tests",
+  globalTeardown: "./tests/global-teardown.ts",
   timeout: 90_000,
   expect: { timeout: 10_000 },
   workers: 1,
