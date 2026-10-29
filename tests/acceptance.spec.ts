@@ -556,3 +556,15 @@ test("Highlighted text is black in dark mode too", async ({ page }) => {
     for (const c of colors) expect(c, theme).toBe("rgb(17, 17, 17)");
   }
 });
+
+test("TaskFlow link sits left of the theme toggle and opens the to-do app in a new tab", async ({ page }) => {
+  await register(page.request);
+  await page.goto("/");
+  const link = page.getByTestId("taskflow-link");
+  await expect(link).toHaveAttribute("href", "https://agentic-todo-personal.vercel.app/");
+  await expect(link).toHaveAttribute("target", "_blank");
+  const linkBox = (await link.boundingBox())!;
+  const toggleBox = (await page.getByTestId("theme-toggle").boundingBox())!;
+  expect(linkBox.x + linkBox.width).toBeLessThanOrEqual(toggleBox.x);
+  expect(Math.abs(linkBox.y + linkBox.height / 2 - (toggleBox.y + toggleBox.height / 2))).toBeLessThan(4);
+});
