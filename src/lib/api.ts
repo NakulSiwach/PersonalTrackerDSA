@@ -32,9 +32,30 @@ export function handler<P>(fn: (req: Request, ctx: { params: Promise<P> }) => Pr
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
       }
       console.error(err);
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      return NextResponse.json({ error: describeServerError(err) }, { status: 500 });
     }
   };
+}
+
+/**
+ * Setup problems (bad database URL, missing secret) get a message that says what to fix,
+ * instead of a bare "Internal server error". No secret values are included.
+ */
+function describeServerError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.includes("AUTH_SECRET")) {
+    return "Server setup problem: AUTH_SECRET is missing or shorter than 32 characters.";
+  }
+  if (
+    err instanceof Prisma.PrismaClientInitializationError ||
+    /Can't reach database server|DATABASE_URL|P1001|P1000|P1013|ENOTFOUND|getaddrinfo/i.test(message)
+  ) {
+    return "Server setup problem: can't connect to the database. Check DATABASE_URL and DATABASE_URL_UNPOOLED.";
+  }
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2021") {
+    return "Server setup problem: database tables are missing. Run the migrations (npm run db:deploy).";
+  }
+  return "Internal server error";
 }
 
 export async function requireUserId(): Promise<string> {
