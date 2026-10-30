@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { QuestionBoard } from "@/components/QuestionBoard";
 import { NewQuestionModal } from "@/components/NewQuestionModal";
+import { DownloadFolder } from "@/components/DownloadFolder";
 import { DifficultyStats, countByDifficulty } from "@/components/DifficultyStats";
 import type { QuestionDTO } from "@/lib/types";
 
@@ -25,13 +26,16 @@ export function FolderView({
       <Breadcrumb items={[{ label: "Folders", href: "/" }, { label: folder.name }]} />
       <div className="mb-5 flex items-center justify-between gap-3">
         <h1 className="truncate text-2xl font-bold">{folder.name}</h1>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          + New question
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <DownloadFolder folderId={folder.id} />
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            + New question
+          </button>
+        </div>
       </div>
 
       <DifficultyStats counts={countByDifficulty(initialQuestions)} label={`Questions solved in ${folder.name}`} />

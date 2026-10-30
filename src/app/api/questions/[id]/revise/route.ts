@@ -8,6 +8,7 @@ import {
   requireUserId,
   serializeQuestion,
 } from "@/lib/api";
+import { recordActivity } from "@/lib/activity-server";
 
 type Params = { id: string };
 
@@ -23,6 +24,7 @@ export const POST = handler<Params>(async (req, { params }) => {
     where: { id },
     data: { lastRevisedAt: new Date() },
   });
+  await recordActivity(userId, "revise"); // counts toward today's streak
 
   if (new URL(req.url).searchParams.get("scope") === "patterns") {
     const next = await findPatternSuggestion(userId);

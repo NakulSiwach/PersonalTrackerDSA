@@ -24,6 +24,12 @@ export const folderNameSchema = z
 
 export const folderSchema = z.object({ name: folderNameSchema });
 
+/** PATCH /api/folders/:id: rename and/or pin to the top of the home screen. */
+export const updateFolderSchema = z
+  .object({ name: folderNameSchema.optional(), pinned: z.boolean().optional() })
+  .strict()
+  .refine((v) => v.name !== undefined || v.pinned !== undefined, "Nothing to update");
+
 /** Trim, lowercase, spaces → "-". */
 export function normalizeTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/\s+/g, "-");

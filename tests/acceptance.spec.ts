@@ -3,6 +3,8 @@ import http from "node:http";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { E2E_DB_URL } from "../playwright.config";
+import { FEATURE_GROUPS } from "../src/lib/features";
+import { computeStreak } from "../src/lib/streak";
 
 // One fresh user per test keeps tests independent.
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -557,49 +559,51 @@ test("Highlighted text is black in dark mode too", async ({ page }) => {
   }
 });
 
-test("TaskFlow link sits left of the theme toggle and opens the to-do app in a new tab", async ({ page }) => {
+test("Top bar: Explore, study links, streak, theme and logout in order, fitting on a phone", async ({ page }, info) => {
   await register(page.request);
   await page.goto("/");
-  const link = page.getByTestId("taskflow-link");
-  await expect(link).toHaveAttribute("href", "https://agentic-todo-personal.vercel.app/");
-  await expect(link).toHaveAttribute("target", "_blank");
-  const linkBox = (await link.boundingBox())!;
-  const toggleBox = (await page.getByTestId("theme-toggle").boundingBox())!;
-  expect(linkBox.x + linkBox.width).toBeLessThanOrEqual(toggleBox.x);
-  expect(Math.abs(linkBox.y + linkBox.height / 2 - (toggleBox.y + toggleBox.height / 2))).toBeLessThan(4);
-});
+  const links = [
+    ["striver-link", "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet", "Striver A2Z"],
+    ["neetcode-link", "https://neetcode.io/practice/practice/neetcode250", "Neetcode 250"],
+    ["pomodoro-link", "https://pomofocus.io/", "Pomodoro"],
+    ["taskflow-link", "https://agentic-todo-personal.vercel.app/", "TaskFlow"],
+  ] as const;
 
-test("Pomodoro link sits left of TaskFlow, and the top bar fits on a phone", async ({ page }) => {
-  await register(page.request);
-  await page.goto("/");
-  const pomo = page.getByTestId("pomodoro-link");
-  await expect(pomo).toHaveAttribute("href", "https://pomofocus.io/");
-  await expect(pomo).toHaveAttribute("target", "_blank");
-  await expect(pomo).toHaveAccessibleName("Pomodoro (opens in a new tab)");
-  const pomoBox = (await pomo.boundingBox())!;
-  const taskBox = (await page.getByTestId("taskflow-link").boundingBox())!;
-  expect(pomoBox.x + pomoBox.width).toBeLessThanOrEqual(taskBox.x);
-  expect(Math.abs(pomoBox.y - taskBox.y)).toBeLessThan(4);
+  // Explore features sits right of the logo.
+  const logo = (await page.getByRole("link", { name: "DSA Tracker" }).boundingBox())!;
+  const explore = (await page.getByTestId("explore-features").boundingBox())!;
+  expect(explore.x).toBeGreaterThan(logo.x + logo.width - 1);
 
-  // Nothing in the header spills past the screen edge.
-  const overflow = await page.locator("header").evaluate((h) => h.scrollWidth - h.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
-  const logout = (await page.getByRole("button", { name: "Logout" }).boundingBox())!;
-  expect(logout.x + logout.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-});
-
-test("Pomodoro link sits left of TaskFlow, opens Pomofocus in a new tab, and the top bar fits", async ({ page }) => {
-  await register(page.request);
-  await page.goto("/");
-  const pomo = page.getByTestId("pomodoro-link");
-  await expect(pomo).toHaveAttribute("href", "https://pomofocus.io/");
-  await expect(pomo).toHaveAttribute("target", "_blank");
-  await expect(pomo).toHaveAccessibleName("Pomodoro (opens in a new tab)");
-  const pomoBox = (await pomo.boundingBox())!;
-  const taskBox = (await page.getByTestId("taskflow-link").boundingBox())!;
-  expect(pomoBox.x + pomoBox.width).toBeLessThanOrEqual(taskBox.x);
-  expect(Math.abs(pomoBox.y - taskBox.y)).toBeLessThan(4);
-  // Nothing in the header spills off-screen, even at phone width.
+  if (info.project.name === "mobile") {
+    // Phones: the four links live in one grid menu.
+    await page.getByTestId("links-menu").click();
+    for (const [, href, label] of links) {
+      const item = page.getByRole("menuitem", { name: label });
+      await expect(item).toHaveAttribute("href", href);
+      await expect(item).toHaveAttribute("target", "_blank");
+    }
+    await page.keyboard.press("Escape");
+  } else {
+    // Wider screens: Striver A2Z, Neetcode 250, Pomodoro, TaskFlow, then streak, theme, logout.
+    let lastRight = 0;
+    for (const [id, href, label] of links) {
+      const el = page.getByTestId(id);
+      await expect(el).toHaveAttribute("href", href);
+      await expect(el).toHaveAttribute("target", "_blank");
+      await expect(el).toHaveAccessibleName(`${label} (opens in a new tab)`);
+      const box = (await el.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(lastRight);
+      lastRight = box.x + box.width;
+    }
+    const streakBox = (await page.getByTestId("streak-button").boundingBox())!;
+    expect(streakBox.x).toBeGreaterThanOrEqual(lastRight);
+  }
+  // Streak sits immediately left of the dark-mode switch on every screen size.
+  const streak = (await page.getByTestId("streak-button").boundingBox())!;
+  const theme = (await page.getByTestId("theme-toggle").boundingBox())!;
+  expect(theme.x).toBeGreaterThanOrEqual(streak.x + streak.width);
+  expect(theme.x - (streak.x + streak.width)).toBeLessThan(10);
+  // Nothing in the header spills off-screen.
   const overflow = await page.locator("header > div").evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
@@ -637,4 +641,257 @@ test("Solved dashboards: home counts all folders, each folder counts only its ow
   const empty = await createFolder(page.request, "Empty");
   await page.goto(`/folders/${empty.id}`);
   await expectStats(0, 0, 0, 0);
+});
+
+test("Streak: counts days with a question added or revised, in the viewer's time zone", async ({ page }) => {
+  await register(page.request);
+  await page.goto("/");
+  const count = page.getByTestId("streak-count");
+  await expect(count).toHaveText("0");
+
+  // Adding a question lights today up without reloading.
+  const folder = await createFolder(page.request);
+  await page.goto(`/folders/${folder.id}`);
+  await page.getByRole("button", { name: "+ New question" }).click();
+  await page.getByRole("dialog").getByLabel("Title").fill("Streak Q");
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  await expect(page).toHaveURL(/\/questions\//);
+  await expect(count).toHaveText("1");
+  await page.getByTestId("streak-button").click();
+  await expect(page.getByTestId("streak-today")).toContainText("Done for today");
+
+  // API uses the tz parameter; an invalid zone falls back to UTC instead of failing.
+  for (const tz of ["Asia/Kolkata", "America/Los_Angeles", "Not/AZone"]) {
+    const res = await page.request.get(`/api/streak?tz=${encodeURIComponent(tz)}`);
+    expect(res.status(), tz).toBe(200);
+    const body = await res.json();
+    expect(body.current, tz).toBe(1);
+    expect(body.recent, tz).toHaveLength(14);
+  }
+  expect((await page.request.get("/api/streak")).status()).toBe(200);
+});
+
+test("Streak maths: consecutive days, a missing today keeps yesterday's run, gaps reset it", async () => {
+  // Active the last 3 days including today
+  expect(computeStreak(["2026-10-29", "2026-10-30", "2026-10-31"], "2026-10-31")).toMatchObject({
+    current: 3,
+    longest: 3,
+    activeToday: true,
+  });
+  // Today not done yet: the run up to yesterday still counts
+  expect(computeStreak(["2026-10-29", "2026-10-30"], "2026-10-31")).toMatchObject({ current: 2, activeToday: false });
+  // A missed day breaks it, but the best run is remembered
+  const s = computeStreak(["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-30"], "2026-11-01");
+  expect(s.current).toBe(0);
+  expect(s.longest).toBe(4);
+  // Month and year boundaries
+  expect(computeStreak(["2026-12-31", "2027-01-01"], "2027-01-01").current).toBe(2);
+  expect(computeStreak([], "2026-10-31")).toMatchObject({ current: 0, longest: 0, activeToday: false });
+});
+
+test("Sort by difficulty cycles Hard→Easy, Easy→Hard, then the default order", async ({ page }) => {
+  await register(page.request);
+  const folder = await createFolder(page.request);
+  // Default order = oldest revised first = creation order here.
+  for (const [t, d] of [["Q-medium", "Medium"], ["Q-easy", "Easy"], ["Q-hard", "Hard"], ["Q-easy2", "Easy"]] as const) {
+    await createQuestion(page.request, folder.id, t, { difficulty: d });
+  }
+  await page.goto(`/folders/${folder.id}`);
+  const titles = () => page.getByTestId("question-card").locator("h3").allTextContents();
+  const sortBtn = page.getByTestId("sort-difficulty");
+
+  // Search box and sort button are on one row, sort to the right of search.
+  const searchBox = (await page.getByLabel("Search questions by title").boundingBox())!;
+  const sortBox = (await sortBtn.boundingBox())!;
+  expect(sortBox.x).toBeGreaterThanOrEqual(searchBox.x + searchBox.width);
+  expect(Math.abs(sortBox.y - searchBox.y)).toBeLessThan(6);
+
+  const defaultOrder = ["Q-medium", "Q-easy", "Q-hard", "Q-easy2"];
+  expect(await titles()).toEqual(defaultOrder);
+
+  await sortBtn.click();
+  await expect(page.getByTestId("sort-label")).toHaveText("Hard → Easy");
+  expect(await titles()).toEqual(["Q-hard", "Q-medium", "Q-easy", "Q-easy2"]);
+
+  await sortBtn.click();
+  await expect(page.getByTestId("sort-label")).toHaveText("Easy → Hard");
+  expect(await titles()).toEqual(["Q-easy", "Q-easy2", "Q-medium", "Q-hard"]);
+
+  await sortBtn.click();
+  await expect(page.getByTestId("sort-label")).toHaveText("Difficulty");
+  expect(await titles()).toEqual(defaultOrder);
+  // The Revise next card is never re-sorted.
+  await expect(page.getByTestId("suggestion-title")).toHaveText("Q-medium");
+});
+
+test("Math: $...$ and $$...$$ render as formulas and survive a reload", async ({ page }) => {
+  await register(page.request);
+  const folder = await createFolder(page.request);
+  const q = await createQuestion(page.request, folder.id, "Math test");
+  await page.goto(`/folders/${folder.id}/questions/${q.id}`);
+  const editor = page.getByTestId("editor");
+  await editor.click();
+  await page.keyboard.type("Time: $O(n log n)$ ok");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("$$T(n) = 2T(n/2) + n$$");
+  await expect(editor.getByTestId("math-node")).toHaveCount(2);
+  await expect(editor.locator(".katex")).toHaveCount(2);
+  // "log" is shown as the log operator (upright), not italic letters.
+  await expect(editor.getByTestId("math-node").first().locator(".mop")).toContainText("log");
+  await expect(editor.locator('[data-testid="math-node"][data-display="true"]')).toHaveCount(1);
+  await expect(page.getByTestId("save-status")).toHaveText("Saved");
+
+  await page.reload();
+  await expect(editor.locator(".katex")).toHaveCount(2);
+  await expect(editor.getByTestId("math-node").first()).toHaveAttribute("data-latex", "O(n log n)");
+  await expect(editor).toContainText("Time:");
+  await expect(editor).toContainText("ok");
+});
+
+test("Quick add: + button, N and Alt+N open New question with a folder picker", async ({ page }) => {
+  await register(page.request);
+  await createFolder(page.request, "Arrays");
+  const graphs = await createFolder(page.request, "Graphs");
+  await createQuestion(page.request, graphs.id, "BFS"); // so the folder shows its search box
+
+  // N on the home screen
+  await page.goto("/");
+  const dialog = page.getByRole("dialog", { name: "New question" });
+  // Retry until the page has hydrated and the shortcut listener is attached.
+  await expect(async () => {
+    await page.keyboard.press("n");
+    await expect(dialog).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await expect(dialog.getByRole("button", { name: "Folder" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+
+  // Typing "n" inside a text box must NOT open it
+  await page.goto(`/folders/${graphs.id}`);
+  await page.getByLabel("Search questions by title").fill("");
+  await page.getByLabel("Search questions by title").press("n");
+  await expect(dialog).toBeHidden();
+
+  // Alt+N inside a folder preselects that folder
+  await page.locator("body").click({ position: { x: 5, y: 300 } });
+  await page.keyboard.press("Alt+n");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Folder" })).toHaveText("Graphs");
+  await page.keyboard.press("Escape");
+
+  // The + button works from anywhere, and you can pick another folder
+  await page.goto("/");
+  await page.getByTestId("quick-add").click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Folder" }).click();
+  await page.getByRole("option", { name: /Graphs/ }).click();
+  await dialog.getByLabel("Title").fill("Quick one");
+  await dialog.getByRole("radio", { name: "Hard" }).click();
+  await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(page).toHaveURL(new RegExp(`/folders/${graphs.id}/questions/`));
+  await expect(page.getByLabel("Title")).toHaveValue("Quick one");
+  await expect(page.getByTestId("streak-count")).toHaveText("1");
+});
+
+test("Quick add with no folders explains what to do", async ({ page }) => {
+  await register(page.request);
+  await page.goto("/");
+  await page.getByTestId("quick-add").click();
+  await expect(page.getByRole("dialog")).toContainText("don't have any folders yet");
+});
+
+test("Explore features lists every feature", async ({ page }) => {
+  await register(page.request);
+  await page.goto("/");
+  await page.getByTestId("explore-features").click();
+  const list = page.getByTestId("features-list");
+  await expect(list).toBeVisible();
+  for (const group of FEATURE_GROUPS) {
+    for (const f of group.features) await expect(list, f.title).toContainText(f.title);
+  }
+  for (const word of ["Streak", "Pin folders", "Quick add", "Math formulas", "Download a folder", "Sort by difficulty"]) {
+    await expect(list).toContainText(word);
+  }
+  await page.getByRole("button", { name: "Got it" }).click();
+  await expect(list).toBeHidden();
+});
+
+test("Pin folders to the top of the home screen", async ({ page }) => {
+  await register(page.request);
+  for (const n of ["Arrays", "Graphs", "Zeta"]) await createFolder(page.request, n);
+  await page.goto("/");
+  const names = () => page.getByTestId("folder-card").locator("h2 span.truncate").allTextContents();
+  expect(await names()).toEqual(["Arrays", "Graphs", "Zeta"]);
+
+  await page.getByRole("button", { name: "Actions for Zeta" }).click();
+  await page.getByRole("menuitem", { name: "Pin to top" }).click();
+  await expect(page.getByText('Pinned "Zeta" to the top')).toBeVisible();
+  expect(await names()).toEqual(["Zeta", "Arrays", "Graphs"]);
+  await expect(page.getByTestId("pin-badge")).toHaveCount(1);
+
+  await page.reload(); // remembered
+  expect(await names()).toEqual(["Zeta", "Arrays", "Graphs"]);
+
+  await page.getByRole("button", { name: "Actions for Zeta" }).click();
+  await page.getByRole("menuitem", { name: "Unpin" }).click();
+  await expect(page.getByTestId("pin-badge")).toHaveCount(0);
+  expect(await names()).toEqual(["Arrays", "Graphs", "Zeta"]);
+});
+
+test("Download a folder: HTML file with notes, images and math; PDF print view; private", async ({ browser }) => {
+  const a = await browser.newContext();
+  await register(a.request);
+  const folder = await createFolder(a.request, "Graph Algos");
+  const upload = await a.request.post("/api/upload", {
+    multipart: { file: { name: "dot.png", mimeType: "image/png", buffer: require("fs").readFileSync(PNG) } },
+  });
+  const { url } = await upload.json();
+  const q = await createQuestion(a.request, folder.id, "Dijkstra", { difficulty: "Hard", tags: ["graphs"] });
+  const doc = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Use a min-heap", marks: [{ type: "bold" }] }] },
+      { type: "paragraph", content: [{ type: "math", attrs: { latex: "O(E log V)", display: false } }] },
+      { type: "image", attrs: { src: url } },
+    ],
+  };
+  await a.request.patch(`/api/questions/${q.id}`, { data: { content: JSON.stringify(doc) } });
+  await createQuestion(a.request, folder.id, "Empty one");
+
+  const page = await a.newPage();
+  await page.goto(`/folders/${folder.id}`);
+  await page.getByTestId("download-folder").click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("menuitem", { name: /HTML file/ }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("Graph-Algos-notes.html");
+  const html = require("fs").readFileSync(await download.path(), "utf8") as string;
+  expect(html).toContain("Dijkstra");
+  expect(html).toContain("<strong>Use a min-heap</strong>");
+  expect(html).toContain('class="katex"');
+  expect(html).toContain("data:image/png;base64,");
+  expect(html).toContain("Empty one");
+  expect(html).not.toContain("/api/uploads/");
+
+  // PDF option: print-ready page in a new tab that opens the print dialog
+  const [printTab] = await Promise.all([
+    page.context().waitForEvent("page"),
+    (async () => {
+      await page.getByTestId("download-folder").click();
+      await page.getByRole("menuitem", { name: /PDF/ }).click();
+    })(),
+  ]);
+  await printTab.waitForLoadState();
+  expect(printTab.url()).toContain(`/api/folders/${folder.id}/export?format=print`);
+  await expect(printTab.getByRole("heading", { name: "Graph Algos" })).toBeVisible();
+  const printHtml = await (await a.request.get(`/api/folders/${folder.id}/export?format=print`)).text();
+  expect(printHtml).toContain("window.print()");
+
+  // Another user can't export it
+  const b = await browser.newContext();
+  await register(b.request);
+  expect((await b.request.get(`/api/folders/${folder.id}/export?format=html`)).status()).toBe(404);
+  await a.close();
+  await b.close();
 });

@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import type { Editor } from "@tiptap/react";
+import { promptForLatex } from "./MathPreview";
 
 export const HIGHLIGHT_COLORS = [
   { name: "Yellow", value: "#fef08a" },
@@ -94,6 +95,15 @@ export function EditorToolbar({ editor, onPickImage }: { editor: Editor; onPickI
         onClick={() => editor.chain().focus().toggleCodeBlock().run()}
       >
         {"{ }"}
+      </Btn>
+      <Btn
+        label="Math formula"
+        onClick={() => {
+          const latex = promptForLatex();
+          if (latex) editor.chain().focus().insertMath(latex).run();
+        }}
+      >
+        <span className="font-serif italic">∑</span>
       </Btn>
       <Sep />
       <Btn

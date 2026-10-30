@@ -18,6 +18,7 @@ model User {
   createdAt    DateTime   @default(now())
   folders      Folder[]
   images       Image[]
+  activity     ActivityEvent[]
 }
 
 model Folder {
@@ -26,6 +27,7 @@ model Folder {
   userId    String
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions Question[]
+  pinned    Boolean    @default(false) // pinned folders are listed first on the home screen
   createdAt DateTime   @default(now())
 
   @@unique([userId, name])
@@ -60,4 +62,16 @@ model Image {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// One row per "study action" (a question added or revised). Days with at least one row count
+// toward the streak. Rows stay even if the question is later deleted: the work still happened.
+model ActivityEvent {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind   String // "create" | "revise"
+  at     DateTime @default(now())
+
+  @@index([userId, at])
 }

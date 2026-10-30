@@ -17,14 +17,14 @@ export default async function HomePage() {
   });
   const folders = await prisma.folder.findMany({
     where: { userId },
-    orderBy: { name: "asc" },
+    orderBy: [{ pinned: "desc" }, { name: "asc" }],
     include: { _count: { select: { questions: true } } },
   });
   return (
     <FoldersView
       patternCount={patternCount}
       stats={countByDifficulty(allQuestions)}
-      initialFolders={folders.map((f) => ({ id: f.id, name: f.name, questionCount: f._count.questions }))}
+      initialFolders={folders.map((f) => ({ id: f.id, name: f.name, questionCount: f._count.questions, pinned: f.pinned }))}
     />
   );
 }

@@ -4,6 +4,7 @@ export interface FolderDTO {
   id: string;
   name: string;
   questionCount: number;
+  pinned: boolean;
 }
 
 export interface QuestionDTO {

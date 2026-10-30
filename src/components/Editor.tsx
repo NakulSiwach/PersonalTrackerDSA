@@ -8,6 +8,8 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { EditorToolbar } from "./EditorToolbar";
+import { MathWithPreview } from "./MathPreview";
+import "katex/dist/katex.min.css";
 
 const MAX_UPLOAD = 4 * 1024 * 1024; // same as the server (Vercel caps request bodies at 4.5 MB)
 const MAX_EDGE = 2400; // px; plenty for reading code/diagrams in a screenshot
@@ -118,6 +120,7 @@ export function Editor({
         isAllowedUri: (url) => /^https?:\/\//i.test(url),
       }),
       Placeholder.configure({ placeholder: "Write the problem, approach, complexity, code…" }),
+      MathWithPreview,
     ],
     content: parseContent(content),
     editorProps: {

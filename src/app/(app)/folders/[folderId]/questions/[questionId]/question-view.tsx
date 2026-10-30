@@ -11,6 +11,7 @@ import { Menu } from "@/components/Menu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/Toast";
 import { api } from "@/lib/client";
+import { notifyActivity } from "@/lib/activity";
 import type { Difficulty } from "@/lib/validation";
 import { DifficultyPicker } from "@/components/DifficultyPicker";
 import { PatternToggle } from "@/components/PatternToggle";
@@ -132,6 +133,7 @@ export function QuestionView({
       setLastRevisedAt(res.question.lastRevisedAt);
       setNext(res.nextSuggestion);
       toast("Marked as revised ✓");
+      notifyActivity();
     } catch (err) {
       toast((err as Error).message, "error");
     } finally {

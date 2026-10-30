@@ -11,7 +11,9 @@ import { useToast } from "@/components/Toast";
 import { api } from "@/lib/client";
 import type { FolderDTO } from "@/lib/types";
 
-const byName = (a: FolderDTO, b: FolderDTO) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+// Pinned folders first, then by name (same order as the server).
+const byName = (a: FolderDTO, b: FolderDTO) =>
+  Number(b.pinned) - Number(a.pinned) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
 export function FoldersView({
   initialFolders,
@@ -53,6 +55,19 @@ export function FoldersView({
       setNameModal(null);
     } catch (err) {
       setError((err as Error).message);
+    }
+  }
+
+  async function togglePin(folder: FolderDTO) {
+    try {
+      const updated = await api<FolderDTO>(`/api/folders/${folder.id}`, {
+        method: "PATCH",
+        json: { pinned: !folder.pinned },
+      });
+      setFolders((f) => f.map((x) => (x.id === updated.id ? updated : x)).sort(byName));
+      toast(updated.pinned ? `Pinned "${updated.name}" to the top` : `Unpinned "${updated.name}"`);
+    } catch (err) {
+      toast((err as Error).message, "error");
     }
   }
 
@@ -115,6 +130,7 @@ export function FoldersView({
               folder={folder}
               onRename={() => openModal({ mode: "rename", folder })}
               onDelete={() => setToDelete(folder)}
+              onTogglePin={() => togglePin(folder)}
             />
           ))}
         </div>

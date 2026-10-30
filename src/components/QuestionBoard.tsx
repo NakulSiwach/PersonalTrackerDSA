@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { api } from "@/lib/client";
+import { notifyActivity } from "@/lib/activity";
 import type { QuestionDTO } from "@/lib/types";
 import { QuestionCard } from "./QuestionCard";
 import { Select } from "./Select";
@@ -13,6 +14,16 @@ type Listing = { suggestion: QuestionDTO | null; questions: QuestionDTO[] };
 // Default order from the spec: oldest lastRevisedAt first (ties by createdAt).
 const byRevised = (a: QuestionDTO, b: QuestionDTO) =>
   a.lastRevisedAt.localeCompare(b.lastRevisedAt) || a.createdAt.localeCompare(b.createdAt);
+
+// Difficulty sort button cycles: default → hardest first → easiest first → default.
+type SortMode = "default" | "desc" | "asc";
+const NEXT_SORT: Record<SortMode, SortMode> = { default: "desc", desc: "asc", asc: "default" };
+const DIFFICULTY_RANK: Record<QuestionDTO["difficulty"], number> = { Easy: 1, Medium: 2, Hard: 3 };
+const SORT_TEXT: Record<SortMode, { label: string; aria: string }> = {
+  default: { label: "Difficulty", aria: "Sort by difficulty (currently: default order)" },
+  desc: { label: "Hard → Easy", aria: "Sort by difficulty (currently: hardest first)" },
+  asc: { label: "Easy → Hard", aria: "Sort by difficulty (currently: easiest first)" },
+};
 
 /**
  * Filter bar + Revision Suggestion card + question cards. Used by a folder (scope "folder")
@@ -34,6 +45,7 @@ export function QuestionBoard({
   const [tag, setTag] = useState("");
   const [revising, setRevising] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortMode>("default");
 
   const tagOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -46,13 +58,17 @@ export function QuestionBoard({
     ];
   }, [questions]);
 
-  // Client-side filtering; the suggestion card is never filtered.
+  // Client-side filtering and sorting; the suggestion card is never affected.
   const visible = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return questions.filter(
+    const filtered = questions.filter(
       (q) => (!s || q.title.toLowerCase().includes(s)) && (!tag || q.tags.includes(tag)),
     );
-  }, [questions, search, tag]);
+    if (sort === "default") return filtered;
+    // Stable sort, so questions with the same difficulty keep the default order.
+    const dir = sort === "desc" ? -1 : 1;
+    return [...filtered].sort((a, b) => dir * (DIFFICULTY_RANK[a.difficulty] - DIFFICULTY_RANK[b.difficulty]));
+  }, [questions, search, tag, sort]);
 
   async function markRevised(id: string) {
     setRevising(true);
@@ -67,6 +83,7 @@ export function QuestionBoard({
       );
       setSuggestion(nextSuggestion);
       toast("Marked as revised ✓");
+      notifyActivity();
     } catch (err) {
       toast((err as Error).message, "error");
     } finally {
@@ -100,14 +117,40 @@ export function QuestionBoard({
     <>
       {questions.length > 0 && (
         <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-          <input
-            type="search"
-            aria-label="Search questions by title"
-            placeholder="Search by title…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 sm:flex-1 dark:border-neutral-700 dark:bg-neutral-900"
-          />
+          <div className="flex gap-2 sm:flex-1">
+            <input
+              type="search"
+              aria-label="Search questions by title"
+              placeholder="Search by title…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900"
+            />
+            <button
+              type="button"
+              onClick={() => setSort((s) => NEXT_SORT[s])}
+              aria-label={SORT_TEXT[sort].aria}
+              aria-pressed={sort !== "default"}
+              title="Sort by difficulty: Hard → Easy, then Easy → Hard, then back to default"
+              data-testid="sort-difficulty"
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium whitespace-nowrap ${
+                sort === "default"
+                  ? "border-neutral-300 bg-white text-neutral-700 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                  : "border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-300"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {sort === "asc" ? (
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                ) : sort === "desc" ? (
+                  <path d="M12 5v14M19 12l-7 7-7-7" />
+                ) : (
+                  <path d="M7 4v16M3 8l4-4 4 4M17 20V4M21 16l-4 4-4-4" />
+                )}
+              </svg>
+              <span data-testid="sort-label">{SORT_TEXT[sort].label}</span>
+            </button>
+          </div>
           <Select label="Filter by tag" value={tag} options={tagOptions} onChange={setTag} className="sm:w-56" />
         </div>
       )}

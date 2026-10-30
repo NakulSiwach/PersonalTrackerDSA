@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { findSuggestion, getOwnedFolder, handler, requireUserId, serializeQuestion } from "@/lib/api";
 import { createQuestionSchema } from "@/lib/validation";
+import { recordActivity } from "@/lib/activity-server";
 
 type Params = { id: string };
 
@@ -37,5 +38,6 @@ export const POST = handler<Params>(async (req, { params }) => {
       tags: JSON.stringify(input.tags ?? []),
     },
   });
+  await recordActivity(userId, "create"); // counts toward today's streak
   return NextResponse.json(serializeQuestion(question, true), { status: 201 });
 });

@@ -113,3 +113,24 @@ button:not(:disabled) {
 html.dark {
   color-scheme: dark;
 }
+
+/* Math formulas (KaTeX) inside notes */
+.tiptap .math-node {
+  cursor: pointer;
+  border-radius: 0.25rem;
+  padding: 0 0.15em;
+}
+.tiptap .math-node:hover {
+  background: var(--color-indigo-50);
+}
+.dark .tiptap .math-node:hover {
+  background: var(--color-neutral-800);
+}
+.tiptap .math-node[data-display="true"] {
+  display: block;
+  margin: 0.5em 0;
+  text-align: center;
+}
+.tiptap .math-node.ProseMirror-selectednode {
+  outline: 2px solid var(--color-indigo-500);
+}

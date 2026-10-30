@@ -65,6 +65,15 @@ These were requested after the spec build:
 - **Screenshot paste:** paste a screenshot (e.g. Win+Shift+S, then Ctrl+V) straight into a question. It works even if the cursor is in the title field. Large screenshots are scaled down in the browser to fit the 4 MB upload limit.
 - **Readable highlights in dark mode:** highlighted text is always black, since the highlight colors are light.
 - **Free hosting:** Postgres instead of SQLite, and images stored in the database.
+- **Solved dashboards:** the home screen shows Easy / Medium / Hard counts across all folders; each folder shows its own.
+- **Streak (🔥, left of the dark-mode switch):** days in a row with at least one question added or revised, counted in your own time zone. Click it for your best streak and the last 14 days. It's backed by an `ActivityEvent` log, which was backfilled from existing questions.
+- **Sort by difficulty:** the button right of a folder's search box cycles Hard → Easy, Easy → Hard, then the default order.
+- **Study links in the top bar:** Striver A2Z, Neetcode 250, Pomodoro (Pomofocus) and TaskFlow. On phones they're grouped under one grid button.
+- **Math formulas:** type `$O(n log n)$` (inline) or `$$T(n) = 2T(n/2) + n$$` (own line), or use the ∑ toolbar button. Formulas are drawn with KaTeX, and `log`/`sqrt(…)` are converted for you. Click a formula to edit it.
+- **Quick add:** the round **+** button (bottom right), or press **N** / **Alt+N**, opens New question with a folder picker from any page. Ctrl+N can't be used, because browsers keep it for "new window".
+- **Explore features:** a button next to the logo that lists everything the app can do. The list lives in `src/lib/features.ts`. **Add every new feature there**; a test checks the popup shows them all.
+- **Pin folders:** "Pin to top" in a folder's ⋯ menu keeps it first on the home screen.
+- **Download a folder:** the **Download** button on a folder page gives **PDF** (a print view; choose "Save as PDF") or a single **HTML file** with every note, image and formula embedded (`GET /api/folders/:id/export?format=html|print`).
 
 ## Scripts
 
