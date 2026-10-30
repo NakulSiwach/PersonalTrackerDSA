@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { DifficultyStats, type DifficultyCounts } from "@/components/DifficultyStats";
 import { FolderCard } from "@/components/FolderCard";
 import { Modal } from "@/components/Modal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -14,11 +16,14 @@ const byName = (a: FolderDTO, b: FolderDTO) => (a.name < b.name ? -1 : a.name > 
 export function FoldersView({
   initialFolders,
   patternCount,
+  stats,
 }: {
   initialFolders: FolderDTO[];
   patternCount: number;
+  stats: DifficultyCounts;
 }) {
   const toast = useToast();
+  const router = useRouter();
   const [folders, setFolders] = useState(initialFolders);
   const [nameModal, setNameModal] = useState<{ mode: "create" } | { mode: "rename"; folder: FolderDTO } | null>(null);
   const [name, setName] = useState("");
@@ -56,6 +61,7 @@ export function FoldersView({
     try {
       await api(`/api/folders/${toDelete.id}`, { method: "DELETE" });
       setFolders((f) => f.filter((x) => x.id !== toDelete.id));
+      router.refresh(); // its questions are gone, so update the solved counts
       setToDelete(null);
     } catch (err) {
       toast((err as Error).message, "error");
@@ -74,6 +80,8 @@ export function FoldersView({
           + New folder
         </button>
       </div>
+
+      <DifficultyStats counts={stats} label="Questions solved across all folders" />
 
       {/* Built-in list of every question toggled as "Pattern" (not a real folder: no rename/delete). */}
       <Link

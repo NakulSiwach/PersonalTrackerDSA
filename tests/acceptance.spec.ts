@@ -603,3 +603,38 @@ test("Pomodoro link sits left of TaskFlow, opens Pomofocus in a new tab, and the
   const overflow = await page.locator("header > div").evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test("Solved dashboards: home counts all folders, each folder counts only its own", async ({ page }) => {
+  await register(page.request);
+  const arrays = await createFolder(page.request, "Arrays");
+  const graphs = await createFolder(page.request, "Graphs");
+  for (const d of ["Easy", "Easy", "Medium", "Hard"]) await createQuestion(page.request, arrays.id, `A ${d}`, { difficulty: d });
+  for (const d of ["Medium", "Hard", "Hard"]) await createQuestion(page.request, graphs.id, `G ${d}`, { difficulty: d });
+
+  const expectStats = async (total: number, easy: number, medium: number, hard: number) => {
+    await expect(page.getByTestId("stat-total")).toHaveText(String(total));
+    await expect(page.getByTestId("stat-easy")).toHaveText(String(easy));
+    await expect(page.getByTestId("stat-medium")).toHaveText(String(medium));
+    await expect(page.getByTestId("stat-hard")).toHaveText(String(hard));
+  };
+
+  await page.goto("/");
+  await expectStats(7, 2, 2, 3);
+
+  await page.goto(`/folders/${arrays.id}`);
+  await expectStats(4, 2, 1, 1);
+  await page.goto(`/folders/${graphs.id}`);
+  await expectStats(3, 0, 1, 2);
+
+  // Deleting a folder updates the home totals straight away
+  await page.goto("/");
+  await page.getByRole("button", { name: "Actions for Graphs" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+  await expectStats(4, 2, 1, 1);
+
+  // An empty folder shows zeros
+  const empty = await createFolder(page.request, "Empty");
+  await page.goto(`/folders/${empty.id}`);
+  await expectStats(0, 0, 0, 0);
+});

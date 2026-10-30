@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { QuestionBoard } from "@/components/QuestionBoard";
 import { NewQuestionModal } from "@/components/NewQuestionModal";
+import { DifficultyStats, countByDifficulty } from "@/components/DifficultyStats";
 import type { QuestionDTO } from "@/lib/types";
 
 export function FolderView({
@@ -32,6 +33,8 @@ export function FolderView({
           + New question
         </button>
       </div>
+
+      <DifficultyStats counts={countByDifficulty(initialQuestions)} label={`Questions solved in ${folder.name}`} />
 
       <QuestionBoard scope="folder" initial={{ suggestion: initialSuggestion, questions: initialQuestions }} />
 
