@@ -568,3 +568,38 @@ test("TaskFlow link sits left of the theme toggle and opens the to-do app in a n
   expect(linkBox.x + linkBox.width).toBeLessThanOrEqual(toggleBox.x);
   expect(Math.abs(linkBox.y + linkBox.height / 2 - (toggleBox.y + toggleBox.height / 2))).toBeLessThan(4);
 });
+
+test("Pomodoro link sits left of TaskFlow, and the top bar fits on a phone", async ({ page }) => {
+  await register(page.request);
+  await page.goto("/");
+  const pomo = page.getByTestId("pomodoro-link");
+  await expect(pomo).toHaveAttribute("href", "https://pomofocus.io/");
+  await expect(pomo).toHaveAttribute("target", "_blank");
+  await expect(pomo).toHaveAccessibleName("Pomodoro (opens in a new tab)");
+  const pomoBox = (await pomo.boundingBox())!;
+  const taskBox = (await page.getByTestId("taskflow-link").boundingBox())!;
+  expect(pomoBox.x + pomoBox.width).toBeLessThanOrEqual(taskBox.x);
+  expect(Math.abs(pomoBox.y - taskBox.y)).toBeLessThan(4);
+
+  // Nothing in the header spills past the screen edge.
+  const overflow = await page.locator("header").evaluate((h) => h.scrollWidth - h.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  const logout = (await page.getByRole("button", { name: "Logout" }).boundingBox())!;
+  expect(logout.x + logout.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+});
+
+test("Pomodoro link sits left of TaskFlow, opens Pomofocus in a new tab, and the top bar fits", async ({ page }) => {
+  await register(page.request);
+  await page.goto("/");
+  const pomo = page.getByTestId("pomodoro-link");
+  await expect(pomo).toHaveAttribute("href", "https://pomofocus.io/");
+  await expect(pomo).toHaveAttribute("target", "_blank");
+  await expect(pomo).toHaveAccessibleName("Pomodoro (opens in a new tab)");
+  const pomoBox = (await pomo.boundingBox())!;
+  const taskBox = (await page.getByTestId("taskflow-link").boundingBox())!;
+  expect(pomoBox.x + pomoBox.width).toBeLessThanOrEqual(taskBox.x);
+  expect(Math.abs(pomoBox.y - taskBox.y)).toBeLessThan(4);
+  // Nothing in the header spills off-screen, even at phone width.
+  const overflow = await page.locator("header > div").evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
