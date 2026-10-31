@@ -29,8 +29,9 @@ export function QuestionCard({
         className="absolute inset-0 rounded-xl"
         aria-label={question.title}
       />
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-semibold">{question.title}</h3>
+      {/* On phones the title takes the full width and the Pattern switch wraps below it. */}
+      <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap">
+        <h3 className="w-full font-semibold break-words sm:w-auto sm:min-w-0 sm:flex-1">{question.title}</h3>
         <PatternToggle on={question.isPattern} busy={busy} onToggle={() => onTogglePattern(question)} />
       </div>
       {showFolder && question.folderName && (

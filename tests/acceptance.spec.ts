@@ -50,7 +50,15 @@ test("1. Auth: protected routes redirect to /login; after login the page loads",
   expect(cookie.httpOnly).toBe(true);
   expect(cookie.sameSite).toBe("Lax");
 
+  // Logout asks first; Cancel keeps you logged in.
   await page.getByRole("button", { name: "Logout" }).click();
+  const confirm = page.getByRole("dialog", { name: "Log out?" });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Folders" })).toBeVisible();
+  await page.getByRole("button", { name: "Logout" }).click();
+  await confirm.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto(`/folders/${folder.id}`);
   await expect(page).toHaveURL(/\/login$/);
@@ -498,7 +506,7 @@ async function pasteBigScreenshot(page: Page, target: "editor" | "title") {
     const blob: Blob = await new Promise((r) => canvas.toBlob((b) => r(b!), "image/png"));
     const dt = new DataTransfer();
     dt.items.add(new File([blob], "image.png", { type: "image/png" }));
-    const el = where === "editor" ? document.querySelector(".tiptap")! : document.querySelector('input[aria-label="Title"]')!;
+    const el = where === "editor" ? document.querySelector(".tiptap")! : document.querySelector('[aria-label="Title"]')!;
     (el as HTMLElement).focus();
     el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
     return blob.size;
@@ -814,6 +822,35 @@ test("Explore features lists every feature", async ({ page }) => {
   }
   await page.getByRole("button", { name: "Got it" }).click();
   await expect(list).toBeHidden();
+});
+
+test("Long question titles are shown in full, not squeezed by the Pattern switch", async ({ page }, info) => {
+  await register(page.request);
+  const folder = await createFolder(page.request);
+  const title = "Longest Substring Without Repeating Characters using a sliding window";
+  const q = await createQuestion(page.request, folder.id, title);
+
+  await page.goto(`/folders/${folder.id}`);
+  const card = page.getByTestId("question-card");
+  const heading = card.getByRole("heading", { name: title });
+  await expect(heading).toBeVisible();
+  // On phones the title gets the full card width (the switch wraps below it); nothing is clipped anywhere.
+  if (info.project.name === "mobile") {
+    const cardBox = (await card.boundingBox())!;
+    const headingBox = (await heading.boundingBox())!;
+    expect(headingBox.width).toBeGreaterThan(cardBox.width * 0.8);
+  }
+  expect(await heading.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+  // On the question page the whole title is visible (the box grows instead of scrolling).
+  await page.goto(`/folders/${folder.id}/questions/${q.id}`);
+  const input = page.getByLabel("Title");
+  await expect(input).toHaveValue(title);
+  expect(await input.evaluate((el) => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth)).toBe(true);
+  // Enter doesn't add a line break to a title.
+  await input.press("End");
+  await input.press("Enter");
+  await expect(input).toHaveValue(title);
 });
 
 test("Pin folders to the top of the home screen", async ({ page }) => {

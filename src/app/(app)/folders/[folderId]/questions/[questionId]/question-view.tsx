@@ -110,6 +110,21 @@ export function QuestionView({
   const { state, queue, flush } = useAutosave(q.id);
 
   const [title, setTitle] = useState(q.title);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the title box so long titles are shown in full instead of cut off.
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [title]);
+
   const [link, setLink] = useState(q.link ?? "");
   const [difficulty, setDifficulty] = useState<Difficulty>(q.difficulty);
   const [tags, setTags] = useState(q.tags);
@@ -168,36 +183,43 @@ export function QuestionView({
 
       {/* Metadata panel */}
       <section className="mb-5 space-y-4 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="flex items-start gap-2">
-          <input
+        {/* On phones the title gets its own full-width line; the controls wrap below it. */}
+        <div className="flex flex-wrap items-start gap-2 sm:flex-nowrap">
+          <textarea
+            ref={titleRef}
+            rows={1}
             aria-label="Title"
             value={title}
             onChange={(e) => {
-              setTitle(e.target.value);
-              if (e.target.value.trim()) queue({ title: e.target.value.trim() });
+              const value = e.target.value.replace(/\s*\n\s*/g, " "); // titles stay one line, even when pasted
+              setTitle(value);
+              if (value.trim()) queue({ title: value.trim() });
             }}
+            onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
             onBlur={() => !title.trim() && setTitle(q.title)}
-            className="min-w-0 flex-1 rounded-lg bg-transparent px-1 text-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full min-w-0 resize-none overflow-hidden rounded-lg bg-transparent px-1 text-2xl font-bold break-words outline-none focus:ring-2 focus:ring-indigo-500 sm:w-auto sm:flex-1"
           />
-          <span className="mt-2 shrink-0 text-xs text-neutral-500" role="status" aria-live="polite" data-testid="save-status">
-            {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : state === "error" ? "Save failed" : ""}
-          </span>
-          <PatternToggle
-            size="md"
-            on={isPattern}
-            onToggle={async () => {
-              const nextValue = !isPattern;
-              setIsPattern(nextValue);
-              try {
-                await api(`/api/questions/${q.id}`, { method: "PATCH", json: { isPattern: nextValue } });
-                toast(nextValue ? "Added to Famous Patterns ★" : "Removed from Famous Patterns");
-              } catch (err) {
-                setIsPattern(!nextValue);
-                toast((err as Error).message, "error");
-              }
-            }}
-          />
-          <Menu label="Question actions" items={[{ label: "Delete question", onSelect: () => setConfirmDelete(true), danger: true }]} />
+          <div className="ml-auto flex shrink-0 items-start gap-2">
+            <span className="mt-2 shrink-0 text-xs text-neutral-500" role="status" aria-live="polite" data-testid="save-status">
+              {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : state === "error" ? "Save failed" : ""}
+            </span>
+            <PatternToggle
+              size="md"
+              on={isPattern}
+              onToggle={async () => {
+                const nextValue = !isPattern;
+                setIsPattern(nextValue);
+                try {
+                  await api(`/api/questions/${q.id}`, { method: "PATCH", json: { isPattern: nextValue } });
+                  toast(nextValue ? "Added to Famous Patterns ★" : "Removed from Famous Patterns");
+                } catch (err) {
+                  setIsPattern(!nextValue);
+                  toast((err as Error).message, "error");
+                }
+              }}
+            />
+            <Menu label="Question actions" items={[{ label: "Delete question", onSelect: () => setConfirmDelete(true), danger: true }]} />
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
